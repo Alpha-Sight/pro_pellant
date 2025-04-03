@@ -1,7 +1,9 @@
 "use client";
 
 import {
-    useAbstraxionAccount, useAbstraxionSigningClient,
+    Abstraxion, // Add this import!
+    useAbstraxionAccount, 
+    useAbstraxionSigningClient,
     useModal
 } from "@burnt-labs/abstraxion";
 import {Button} from "@burnt-labs/ui";
@@ -9,105 +11,112 @@ import {useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
 import {calculateFee} from "@cosmjs/stargate";
 import {ClipLoader} from "react-spinners";
-import type { ExecuteResult } from "@cosmjs/cosmwasm-stargate";
+import type { ExecuteResult, IndexedTx } from "@cosmjs/cosmwasm-stargate";
 
 type ExecuteResultOrUndefined = ExecuteResult | undefined;
 
 const Hero: React.FC = () => {
-    // Abstraxion hooks
-    const {data: {bech32Address}, isConnected, isConnecting} = useAbstraxionAccount();
-    const {client, signArb, logout} = useAbstraxionSigningClient();
+    // Fixed destructuring
+    const { data: account, isConnected, isConnecting } = useAbstraxionAccount();
+    const bech32Address = account?.bech32Address;
+    const {client, logout} = useAbstraxionSigningClient();
 
     const [executeResult, setExecuteResult] = useState<ExecuteResultOrUndefined>(undefined);
-
     const blockExplorerUrl = `https://www.mintscan.io/xion-testnet/tx/${executeResult?.transactionHash}`;
 
-    // General state hooks
-    const [, setShow] = useModal();
-
-    // only added for testing
-    useEffect(() => {
-        console.log({isConnected, isConnecting});
-    }, [isConnected, isConnecting])
+    // Fixed variable name for consistency
+    const [showModal, setShowModal] = useModal();
 
     const contractAddress = "xion1pfqrut39hcrfhnd0a975wpcy25t7m2u5ljuxsguv2drh2wca0jqszxqnvs";
-
-    useEffect(() => {
-        if (client) {
-            handleLogin();
-        }
-    }, [client]);
-
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // Debug logging
+    useEffect(() => {
+        console.log({isConnected, isConnecting, address: bech32Address});
+    }, [isConnected, isConnecting, bech32Address]);
+
+    // Wait for BOTH client AND address before login
+    useEffect(() => {
+        if (client && bech32Address) {
+            handleLogin();
+        }
+    }, [client, bech32Address]);
 
     const handleLogin = async () => {
-        const msg = { register_user: {} }
+        if (!client || !bech32Address) {
+            setError("Wallet not properly connected");
+            return;
+        }
+        
+        setLoading(true);
+        setError(null);
+        
+        const msg = { register_user: {} };
 
-        console.log(client)
-
-        // calculateFee(200000, "0.025uxion"),
         try {
-            const res = await client?.execute(
+            // No optional chaining since we've checked client exists
+            const res = await client.execute(
                 bech32Address,
                 contractAddress,
                 msg,
                 calculateFee(200000, "0.025uxion")
             );
 
-            console.log("Res: ", res);
+            console.log("Transaction submitted:", res);
+            setExecuteResult(res);
 
             const txHash = res.transactionHash;
 
-            // Step 3: Show loading state
-            setLoading(true);
-            console.log("Transaction submitted, waiting for confirmation...");
-
-            // Step 4: Poll for transaction result
-            const txResult = await pollForTransaction(txHash);
-
-            // Step 5: Parse the response attributes
-            const attributes = extractWasmAttributes(txResult);
-
-            // Step 6: Handle different response cases
-            if (attributes.is_existing_user === "true") {
-                console.log("User already exists");
-                // // Extract user details from attributes
-                // setUserData({
-                //     name: attributes.name,
-                //     tier: attributes.tier,
-                //     cvCreditsUsed: attributes.cvs_generated,
-                //     cvCreditsLimit: attributes.cv_limit
-                // });
-            } else {
-                console.log("User successfully registered");
-                // Similar extraction for new users
+            try {
+                // Poll for transaction result
+                const txResult = await pollForTransaction(txHash);
+                
+                // Parse the response attributes
+                const attributes = extractWasmAttributes(txResult);
+                
+                if (attributes?.is_existing_user === "true") {
+                    console.log("User already exists:", attributes);
+                } else {
+                    console.log("User successfully registered:", attributes);
+                }
+                
+                // Success - navigate to dashboard
+                router.push("/dashboard");
+            } catch (pollError) {
+                console.error("Failed to get transaction result:", pollError);
+                setError("Transaction may have been submitted but couldn't verify result. Try continuing anyway.");
             }
-
-            return { success: true, attributes };
         } catch (error) {
             console.error("Registration error:", error);
-            console.log("Registration failed: " + error.message);
-            return { success: false, error };
+            if (error instanceof Error) {
+                setError(error.message || "Registration failed");
+            } else {
+                setError("Registration failed");
+            }
         } finally {
             setLoading(false);
         }
-    }
+    };
 
-    // Helper function to poll for transaction completion
-    async function pollForTransaction(txHash, maxAttempts = 10, interval = 2000) {
+    // Helper function with proper TypeScript typing
+    async function pollForTransaction(txHash: string, maxAttempts = 10, interval = 2000): Promise<IndexedTx> {
         let attempts = 0;
 
         while (attempts < maxAttempts) {
             try {
-                // Query transaction using your Cosmos SDK client
-                const result = await client?.getTx(txHash);
+                if (!client) throw new Error("Client not available");
+                
+                console.log(`Polling attempt ${attempts + 1}/${maxAttempts}`);
+                const result = await client.getTx(txHash);
 
                 if (result) {
+                    console.log("Transaction confirmed:", result);
                     return result;
                 }
             } catch (error) {
-                // Transaction not yet processed, continue polling
+                console.log(`Polling attempt ${attempts + 1} failed, retrying...`);
             }
 
             attempts++;
@@ -117,8 +126,8 @@ const Hero: React.FC = () => {
         throw new Error("Transaction confirmation timed out");
     }
 
-    // Extract wasm attributes from transaction result
-    function extractWasmAttributes(txResult) {
+    // Added proper typing
+    function extractWasmAttributes(txResult: IndexedTx) {
         // Find the wasm event in the transaction events
         const wasmEvent = txResult.events.find(event => event.type === "wasm");
 
@@ -128,7 +137,7 @@ const Hero: React.FC = () => {
         return wasmEvent.attributes.reduce((obj, attr) => {
             obj[attr.key] = attr.value;
             return obj;
-        }, {});
+        }, {} as Record<string, string>);
     }
 
     return (
@@ -143,56 +152,59 @@ const Hero: React.FC = () => {
                 </p>
 
                 <div className="max-w-[50vw] mx-auto">
-                    {
-                        bech32Address ? (
-
-                            loading ? (
-                                <ClipLoader
-                                    color={"#000000"}
-                                    loading={loading}
-                                    size={50}
-                                    aria-label="Loading Spinner"
-                                    data-testid="loader"
-                                />
-                            ) : (
-                                <div className="space-y-3 flex flex-col items-center w-[10rem]">
-                                    <button
-                                        onClick={() => router.push("/dashboard")}
-                                        className="flex w-full items-center justify-center bg-[#1C1D24] text-white font-semibold px-5 py-3 rounded-[8px]"
-                                    >
-                                        Continue
-                                    </button>
-
-                                    <button
-                                        onClick={() => logout && logout()}
-                                        className="flex w-full items-center justify-center bg-red-200 text-red-600 font-semibold px-5 py-3 rounded-[8px]"
-                                    >
-                                        Logout
-                                    </button>
-                                </div>
-                            )
+                    {bech32Address ? (
+                        loading ? (
+                            <ClipLoader
+                                color={"#000000"}
+                                loading={loading}
+                                size={50}
+                                aria-label="Loading Spinner"
+                                data-testid="loader"
+                            />
                         ) : (
-                            <Button
-                                style={{
-                                    backgroundColor: "#1C1D24",
-                                    color: "white",
-                                    fontWeight: "600",
-                                }}
+                            <div className="space-y-3 flex flex-col items-center w-[10rem]">
+                                <button
+                                    onClick={() => router.push("/dashboard")}
+                                    className="flex w-full items-center justify-center bg-[#1C1D24] text-white font-semibold px-5 py-3 rounded-[8px]"
+                                >
+                                    Continue
+                                </button>
 
-                                onClick={() => {
-                                    setShow(true)
-                                }}
-
-                                structure="base"
-                            >
-                                Login
-                            </Button>
+                                <button
+                                    onClick={() => logout && logout()}
+                                    className="flex w-full items-center justify-center bg-red-200 text-red-600 font-semibold px-5 py-3 rounded-[8px]"
+                                >
+                                    Logout
+                                </button>
+                            </div>
                         )
-                    }
+                    ) : (
+                        <Button
+                            style={{
+                                backgroundColor: "#1C1D24",
+                                color: "white",
+                                fontWeight: "600",
+                            }}
+                            onClick={() => setShowModal(true)}
+                            structure="base"
+                        >
+                            Login
+                        </Button>
+                    )}
                 </div>
             </div>
+            
+            {/* CRITICAL: Add the Abstraxion modal component */}
+            <Abstraxion onClose={() => setShowModal(false)} />
+            
+            {/* Add error display */}
+            {error && (
+                <div className="mt-4 p-3 bg-red-100 text-red-600 rounded">
+                    {error}
+                </div>
+            )}
         </div>
-    )
-}
+    );
+};
 
-export default Hero
+export default Hero;
