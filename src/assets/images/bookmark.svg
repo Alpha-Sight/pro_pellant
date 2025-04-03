@@ -1,0 +1,13 @@
+<svg width="37" height="37" viewBox="0 0 37 37" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Circular Background -->
+  <rect x="1.2627" y="0.946289" width="35.0684" height="35.0684" rx="17.5342" fill="#000006" />
+  <rect x="1.2627" y="0.946289" width="35.0684" height="35.0684" rx="17.5342" stroke="#000006" stroke-width="2.00195" />
+
+  <!-- File Icon -->
+  <path d="M12 8H24C25.1 8 26 8.9 26 10V27C26 28.1 25.1 29 24 29H13C11.9 29 11 28.1 11 27V10C11 8.9 11.9 8 13 8H12Z" fill="white" />
+  <!-- Document Fold -->
+  <path d="M18 8V15H26" fill="none" stroke="#000006" stroke-width="1.5" />
+
+  <!-- Checkmark -->
+  <path d="M15 22L17.5 24.5L23 19" stroke="#000006" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

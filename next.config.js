@@ -1,4 +1,7 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {}
+const nextConfig = {
+    transpilePackages: ["@burnt-labs/abstraxion"], // Correctly transpile the package
+    reactStrictMode: true,
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;
