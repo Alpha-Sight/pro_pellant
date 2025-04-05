@@ -1,12 +1,156 @@
 "use client";
 
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {ArrowRight, Bold, Italic, Copy, Plus} from "lucide-react"
 import Template21 from "@/components/cvTemplates/Template21";
 import {CVData} from "@/utils/global";
+import type { ExecuteResult, IndexedTx } from "@cosmjs/cosmwasm-stargate";
+import axios from "axios";
+import {
+    Abstraxion,
+    useAbstraxionAccount,
+    useAbstraxionSigningClient,
+    useAbstraxionClient
+} from "@burnt-labs/abstraxion";
+import {useRouter} from "next/navigation";
+import {calculateFee} from "@cosmjs/stargate";
+import {ClipLoader} from "react-spinners";
+import {extractWasmAttributes} from "@/utils/helperFunctions";
+
+type ExecuteResultOrUndefined = ExecuteResult | undefined;
 
 const Dashboard = () => {
-    const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
+    // Fixed destructuring
+    const { data: account, isConnected, isConnecting } = useAbstraxionAccount();
+    const bech32Address = account?.bech32Address;
+    const {client, logout} = useAbstraxionSigningClient();
+    const { client: queryClient } = useAbstraxionClient();
+
+    const [wallet, setWallet] = useState(account?.bech32Address);
+    const [token, setToken] = useState<string | null>(null);
+    const [storedData, setStoredData] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const userToken = localStorage.getItem("user_token");
+            const cvData = localStorage.getItem("cvData");
+            if (userToken) setToken(userToken);
+            if (cvData) setStoredData(cvData);
+        }
+    }, []);
+
+    const [executeResult, setExecuteResult] = useState<ExecuteResultOrUndefined>(undefined);
+    const blockExplorerUrl = `https://www.mintscan.io/xion-testnet/tx/${executeResult?.transactionHash}`;
+
+    const contractAddress = "xion1pfqrut39hcrfhnd0a975wpcy25t7m2u5ljuxsguv2drh2wca0jqszxqnvs";
+    const router = useRouter();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!account.bech32Address) router.push("/")
+    }, []);
+
+    useEffect(() => {
+        const getUserToken = async () => {
+            setLoading(true);
+
+            try {
+                // Query the contract
+                const response = await queryClient?.queryContractSmart(account.bech32Address, {
+                    get_user: { },
+                });
+
+                localStorage.setItem("user_token", response);
+
+                console.log("user Token", response);
+            } catch (error) {
+                console.error('Error querying contract:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        getUserToken();
+    }, [queryClient]);
+
+    const handleRecordCv = async () => {
+        if (!client || !bech32Address) {
+            setError("Wallet not properly connected");
+            return router.push("/");
+        }
+
+        setLoading(true);
+        setError(null);
+
+        const msg = { record_cv_generation: {} };
+
+        try {
+            // No optional chaining since we've checked client exists
+            const res = await client.execute(
+                bech32Address,
+                contractAddress,
+                msg,
+                "auto"
+            );
+
+            console.log("Transaction submitted:", res);
+            setExecuteResult(res);
+
+            const txHash = res.transactionHash;
+
+            try {
+                // Poll for transaction result
+                const txResult = await pollForTransaction(txHash);
+
+                // Parse the response attributes
+                const attributes = extractWasmAttributes(txResult);
+
+                console.log("CV recorded successfully: ", attributes)
+                setToken(attributes?.token);
+                localStorage.setItem("user_token", attributes?.token);
+
+            } catch (pollError) {
+                console.error("Failed to get transaction result:", pollError);
+                setError("Transaction may have been submitted but couldn't verify result. Try continuing anyway.");
+            }
+        } catch (error) {
+            console.error("CV recording error:", error);
+            if (error instanceof Error) {
+                setError(error.message || "CV recording failed");
+            } else {
+                setError("CV recording failed");
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Helper function with proper TypeScript typing
+    async function pollForTransaction(txHash: string, maxAttempts = 10, interval = 2000): Promise<IndexedTx> {
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+            try {
+                if (!client) throw new Error("Client not available");
+
+                console.log(`Polling attempt ${attempts + 1}/${maxAttempts}`);
+                const result = await client.getTx(txHash);
+
+                if (result) {
+                    console.log("Transaction confirmed:", result);
+                    return result;
+                }
+            } catch (error) {
+                console.log(`Polling attempt ${attempts + 1} failed, retrying...`);
+            }
+
+            attempts++;
+            await new Promise(resolve => setTimeout(resolve, interval));
+        }
+
+        throw new Error("Transaction confirmation timed out");
+    }
 
     const [formData, setFormData] = useState<CVData>({
         details: {
@@ -35,6 +179,13 @@ const Dashboard = () => {
         awards: [''],
         certifications: [''],
     });
+
+    useEffect(() => {
+        if (storedData) {
+            setFormData(JSON.parse(storedData))
+        }
+    }, [storedData]);
+
 
     const handleChange = (
         section: keyof CVData,
@@ -129,18 +280,47 @@ const Dashboard = () => {
         });
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async (e: any) => {
+        e.preventDefault();
+
+        localStorage.setItem("cvData", JSON.stringify(formData));
+
+        const url = 'https://propellant.fly.dev/api/cv-analysis';
+        const data = {
+            skills: formData.skills,
+            jobDescription: formData.jobDescription,
+            experiences: formData.experiences
+        };
+
         // Handle form submission logic here
         console.log('Form submitted:', formData);
 
+        console.log("Token: ", token);
 
+        if (!token) {
+            await handleRecordCv();
+        }
+
+        axios.post(url, data, {
+            headers: {
+                'x-user-address': `${account?.bech32Address}`,
+                'x-secure-token': `${token}`,
+                'Content-Type': 'application/json',
+            },
+        }).then((response) => {
+            console.log(response.data);
+            handleChange("professionalSummary", "", response.data.professionalSummary);
+        })
+        .catch((error) => {
+            console.error(error);
+        });
     }
 
     return (
         <div className="background-image h-dvh w-full flex items-center justify-center">
             <div className="absolute inset-0 bg-black opacity-60"></div>
             <div className="w-full max-w-[90vw] mx-auto flex h-[90vh] z-50 rounded-lg overflow-hidden">
-                <section className="w-[40%] col-span-5 bg-black bg-opacity-80 p-6 text-white overflow-y-auto">
+                <form onSubmit={handleSubmit} className="w-[40%] col-span-5 bg-black bg-opacity-80 p-6 text-white overflow-y-auto">
                     <div className="flex items-center gap-5 pb-4 border-b border-white">
                         <div className="w-14 h-14 rounded-full bg-white"></div>
                         <p className="text-xl font-semibold">{formData.details.firstName || "Untitled"}&apos;s {formData.details.jobTitle} CV</p>
@@ -157,6 +337,7 @@ const Dashboard = () => {
                                 className="w-full text-base p-4 rounded-lg border bg-transparent"
                                 value={formData.details.jobTitle}
                                 onChange={(e) => handleChange('details', 'jobTitle', e.target.value)}
+                                required
                             />
                         </div>
 
@@ -169,6 +350,7 @@ const Dashboard = () => {
                                     className="w-full text-base p-4 rounded-lg border bg-transparent"
                                     value={formData.details.firstName}
                                     onChange={(e) => handleChange('details', 'firstName', e.target.value)}
+                                    required
                                 />
                             </div>
 
@@ -180,6 +362,7 @@ const Dashboard = () => {
                                     className="w-full text-base p-4 rounded-lg border bg-transparent"
                                     value={formData.details.lastName}
                                     onChange={(e) => handleChange('details', 'lastName', e.target.value)}
+                                    required
                                 />
                             </div>
                         </div>
@@ -192,6 +375,7 @@ const Dashboard = () => {
                                 className="w-full text-base p-4 rounded-lg border bg-transparent"
                                 value={formData.details.email}
                                 onChange={(e) => handleChange('details', 'email', e.target.value)}
+                                required
                             />
                         </div>
 
@@ -203,6 +387,7 @@ const Dashboard = () => {
                                 className="w-full text-base p-4 rounded-lg border bg-transparent"
                                 value={formData.details.address}
                                 onChange={(e) => handleChange('details', 'address', e.target.value)}
+                                required
                             />
                         </div>
                     </div>
@@ -237,6 +422,7 @@ const Dashboard = () => {
                                             onChange={(e) => handleChange('experiences', 'jobTitle', e.target.value, index)}
                                             placeholder="Enter job title"
                                             className="w-full text-base p-4 rounded-lg border bg-transparent"
+                                            required
                                         />
                                     </div>
 
@@ -248,6 +434,7 @@ const Dashboard = () => {
                                             onChange={(e) => handleChange('experiences', 'company', e.target.value, index)}
                                             placeholder="Enter company name"
                                             className="w-full text-base p-4 rounded-lg border bg-transparent"
+                                            required
                                         />
                                     </div>
                                 </div>
@@ -266,6 +453,7 @@ const Dashboard = () => {
                                                     start: e.target.value
                                                 }, index)}
                                                 className="w-full text-base p-4 rounded-lg border bg-transparent"
+                                                required
                                             />
 
                                             <ArrowRight size={50}/>
@@ -279,6 +467,7 @@ const Dashboard = () => {
                                                 }, index)}
                                                 placeholder="End"
                                                 className="w-full text-base p-4 rounded-lg border bg-transparent"
+                                                required
                                             />
                                         </div>
                                     </div>
@@ -291,6 +480,7 @@ const Dashboard = () => {
                                             onChange={(e) => handleChange('experiences', 'location', e.target.value, index)}
                                             placeholder="Enter location"
                                             className="w-full text-base p-4 rounded-lg border bg-transparent"
+                                            required
                                         />
                                     </div>
                                 </div>
@@ -313,6 +503,7 @@ const Dashboard = () => {
                                             placeholder="Enter duty"
                                             className="w-full text-base p-4 rounded-lg bg-transparent focus:outline-none"
                                             onChange={(e) => handleDutyChange(index, dutyIndex, e.target.value)}
+                                            required
                                         />
                                     ))}
                                 </div>
@@ -358,6 +549,7 @@ const Dashboard = () => {
                                             className="w-full text-base p-4 rounded-lg border bg-transparent"
                                             value={edu.school}
                                             onChange={(e) => handleChange('educations', 'school', e.target.value, index)}
+                                            required
                                         />
                                     </div>
 
@@ -369,6 +561,7 @@ const Dashboard = () => {
                                             className="w-full text-base p-4 rounded-lg border bg-transparent"
                                             value={edu.degree}
                                             onChange={(e) => handleChange('educations', 'degree', e.target.value, index)}
+                                            required
                                         />
                                     </div>
                                 </div>
@@ -386,6 +579,7 @@ const Dashboard = () => {
                                                     ...edu.period,
                                                     start: e.target.value
                                                 }, index)}
+                                                required
                                             />
 
                                             <ArrowRight size={50}/>
@@ -399,6 +593,7 @@ const Dashboard = () => {
                                                     ...edu.period,
                                                     end: e.target.value
                                                 }, index)}
+                                                required
                                             />
                                         </div>
                                     </div>
@@ -411,6 +606,7 @@ const Dashboard = () => {
                                             className="w-full text-base p-4 rounded-lg border bg-transparent"
                                             value={edu.location}
                                             onChange={(e) => handleChange('educations', 'location', e.target.value, index)}
+                                            required
                                         />
                                     </div>
                                 </div>
@@ -446,6 +642,7 @@ const Dashboard = () => {
                                         placeholder="Enter skill name"
                                         className="w-full text-base p-4 rounded-lg border bg-transparent"
                                         onChange={(e) => handleChange('skills', '', e.target.value, index)}
+                                        required
                                     />
 
                                     <button onClick={addSkill} className="absolute right-2 top-2 p-2">
@@ -485,14 +682,27 @@ const Dashboard = () => {
                                 onChange={(e) => handleChange('jobDescription', '', e.target.value)}
                                 placeholder="Enter job description"
                                 className="w-full text-base p-4 bg-transparent"
+                                required
                             />
                         </div>
                     </div>
 
-                    <button className="mt-5 w-full text-black text-base p-4 rounded-lg border bg-white">
-                        Analyze CV
+                    <button type={"submit"} className="mt-5 w-full text-black text-base p-4 rounded-lg border bg-white">
+                        {
+                            loading ? (
+                                <ClipLoader
+                                    color={"#000000"}
+                                    loading={loading}
+                                    size={20}
+                                    aria-label="Loading Spinner"
+                                    data-testid="loader"
+                                />
+                            ) : (
+                                "Analyze CV"
+                            )
+                        }
                     </button>
-                </section>
+                </form>
 
                 <section className="w-[60%] bg-black bg-opacity-40 overflow-y-auto py-10">
                     <div className="w-[90%] mx-auto bg-white">

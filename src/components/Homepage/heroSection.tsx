@@ -1,8 +1,8 @@
 "use client";
 
 import {
-    Abstraxion, // Add this import!
-    useAbstraxionAccount, 
+    Abstraxion,
+    useAbstraxionAccount,
     useAbstraxionSigningClient,
     useModal
 } from "@burnt-labs/abstraxion";
@@ -49,10 +49,10 @@ const Hero: React.FC = () => {
             setError("Wallet not properly connected");
             return;
         }
-        
+
         setLoading(true);
         setError(null);
-        
+
         const msg = { register_user: {} };
 
         try {
@@ -72,18 +72,15 @@ const Hero: React.FC = () => {
             try {
                 // Poll for transaction result
                 const txResult = await pollForTransaction(txHash);
-                
+
                 // Parse the response attributes
                 const attributes = extractWasmAttributes(txResult);
-                
+
                 if (attributes?.is_existing_user === "true") {
                     console.log("User already exists:", attributes);
                 } else {
                     console.log("User successfully registered:", attributes);
                 }
-                
-                // Success - navigate to dashboard
-                router.push("/dashboard");
             } catch (pollError) {
                 console.error("Failed to get transaction result:", pollError);
                 setError("Transaction may have been submitted but couldn't verify result. Try continuing anyway.");
@@ -107,7 +104,7 @@ const Hero: React.FC = () => {
         while (attempts < maxAttempts) {
             try {
                 if (!client) throw new Error("Client not available");
-                
+
                 console.log(`Polling attempt ${attempts + 1}/${maxAttempts}`);
                 const result = await client.getTx(txHash);
 
@@ -157,7 +154,7 @@ const Hero: React.FC = () => {
                             <ClipLoader
                                 color={"#000000"}
                                 loading={loading}
-                                size={50}
+                                size={40}
                                 aria-label="Loading Spinner"
                                 data-testid="loader"
                             />
@@ -193,10 +190,10 @@ const Hero: React.FC = () => {
                     )}
                 </div>
             </div>
-            
+
             {/* CRITICAL: Add the Abstraxion modal component */}
             <Abstraxion onClose={() => setShowModal(false)} />
-            
+
             {/* Add error display */}
             {error && (
                 <div className="mt-4 p-3 bg-red-100 text-red-600 rounded">

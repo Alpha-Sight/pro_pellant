@@ -27,7 +27,7 @@ const Template21 = ({cvData}: {cvData: CVData}) => {
             Summary
           </h2>
           <p className="text-sm text-gray-600">
-            {/*{data.summary}*/}
+            {cvData?.professionalSummary}
           </p>
         </section>
 
@@ -37,7 +37,7 @@ const Template21 = ({cvData}: {cvData: CVData}) => {
             Experience
           </h2>
           {cvData?.experiences.map((exp, index) => (
-              <div key={index} className="mb-4">
+              <div key={index} className="mb-5">
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="text-gray-800 font-semibold">
                     {exp.jobTitle}, {exp.company}
@@ -50,7 +50,7 @@ const Template21 = ({cvData}: {cvData: CVData}) => {
                 </span>
                 </div>
 
-                <p className="mt-5 font-semilbold">Duties</p>
+                <p className="mt-2 font-semilbold">Duties</p>
                 <ul className="mt-3 text-sm list-disc pl-5">
                   { exp.duties.map((duty, idx) => (
                       <li key={idx} className="text-gray-600">
@@ -63,33 +63,33 @@ const Template21 = ({cvData}: {cvData: CVData}) => {
         </section>
 
         {/* Projects Section */}
-        <section className="mb-8">
-          <h2 className="text-gray-800 font-medium mb-3 uppercase border-b border-gray-300 pb-1">
-            Projects
-          </h2>
-          {/*{data.projects.map((project, index) => (*/}
-            <div className="mb-4">
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="text-gray-800">
-                  {/*{project.title}*/}
-                </h3>
-                <span className="text-gray-500 text-sm">
-                  {/*{project.period}*/}
-                </span>
-              </div>
-              <p className="text-gray-600 text-sm mb-2">
-                {/*{project.organization}*/}
-              </p>
-              <ul className="list-disc pl-5 space-y-1">
-                {/*{project.details.map((detail, idx) => (*/}
-                  <li className="text-sm text-gray-600">
-                    {/*{detail}*/}
-                  </li>
-                {/*))}*/}
-              </ul>
-            </div>
+        {/*<section className="mb-8">*/}
+        {/*  <h2 className="text-gray-800 font-medium mb-3 uppercase border-b border-gray-300 pb-1">*/}
+        {/*    Projects*/}
+        {/*  </h2>*/}
+        {/*  /!*{data.projects.map((project, index) => (*!/*/}
+        {/*    <div className="mb-4">*/}
+        {/*      <div className="flex justify-between items-start mb-2">*/}
+        {/*        <h3 className="text-gray-800">*/}
+        {/*          /!*{project.title}*!/*/}
+        {/*        </h3>*/}
+        {/*        <span className="text-gray-500 text-sm">*/}
+        {/*          /!*{project.period}*!/*/}
+        {/*        </span>*/}
+        {/*      </div>*/}
+        {/*      <p className="text-gray-600 text-sm mb-2">*/}
+        {/*        /!*{project.organization}*!/*/}
+        {/*      </p>*/}
+        {/*      <ul className="list-disc pl-5 space-y-1">*/}
+        {/*        /!*{project.details.map((detail, idx) => (*!/*/}
+        {/*          <li className="text-sm text-gray-600">*/}
+        {/*            /!*{detail}*!/*/}
+        {/*          </li>*/}
+        {/*        /!*))}*!/*/}
+        {/*      </ul>*/}
+        {/*    </div>*/}
           {/*))}*/}
-        </section>
+        {/*</section>*/}
 
         {/* Skills Section */}
         <section className="mb-8">
@@ -98,15 +98,10 @@ const Template21 = ({cvData}: {cvData: CVData}) => {
           </h2>
           <div className="grid grid-cols-3 gap-4">
             {cvData?.skills.map((skill, index) => (
-              <p className="text-sm text-gray-600">
+              <p key={index} className="text-sm text-gray-600">
                 {skill}
               </p>
-    ))}
-            {/*{data.skills.row2.map((skill, index) => (*/}
-            {/*  <p className="text-sm text-gray-600">*/}
-            {/*    /!*{skill}*!/*/}
-            {/*  </p>*/}
-            {/*))}*/}
+            ))}
           </div>
         </section>
 
@@ -116,7 +111,7 @@ const Template21 = ({cvData}: {cvData: CVData}) => {
             Education
           </h2>
           {cvData?.educations.map((edu, index) => (
-            <div className="mb-4">
+            <div key={index} className="mb-4">
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <h3 className="text-gray-800">
@@ -139,20 +134,20 @@ const Template21 = ({cvData}: {cvData: CVData}) => {
 
         {/* Additional Information Section */}
         <section>
-          <h2 className="text-gray-800 font-medium mb-3 uppercase border-b border-gray-300 pb-1">
-            Additional Information
-          </h2>
-          <div className="text-sm text-gray-600 space-y-1">
-            <p>
-              <strong>Languages:</strong>
-            </p>
-            <p>
-              <strong>Certifications:</strong>
-            </p>
-            <p>
-              <strong>Awards/Activities:</strong>
-            </p>
-          </div>
+          {/*<h2 className="text-gray-800 font-medium mb-3 uppercase border-b border-gray-300 pb-1">*/}
+          {/*  Additional Information*/}
+          {/*</h2>*/}
+          {/*<div className="text-sm text-gray-600 space-y-1">*/}
+          {/*  <p>*/}
+          {/*    <strong>Languages:</strong>*/}
+          {/*  </p>*/}
+          {/*  <p>*/}
+          {/*    <strong>Certifications:</strong>*/}
+          {/*  </p>*/}
+          {/*  <p>*/}
+          {/*    <strong>Awards/Activities:</strong>*/}
+          {/*  </p>*/}
+          {/*</div>*/}
         </section>
       </div>
     </div>

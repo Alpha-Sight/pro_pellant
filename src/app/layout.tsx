@@ -10,7 +10,6 @@ const inter = Inter({ subsets: ['latin'] })
 
 
 const treasuryConfig = {
-    // treasury: "xion1q8sx9l4a522ys83az63wjdn06amyzzmaszkt47zeyfrj7hddlmcs474gfe",
     treasury: "xion1huyn33tux926r8rfk2yjczqnlzpmp36tv2qy9ahh2c4384q842tspj6xrs",
     rpcUrl: "https://rpc.xion-testnet-2.burnt.com/",
     restUrl: "https://api.xion-testnet-2.burnt.com/"
