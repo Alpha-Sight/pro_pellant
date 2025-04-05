@@ -61,7 +61,7 @@ const Hero: React.FC = () => {
                 bech32Address,
                 contractAddress,
                 msg,
-                calculateFee(200000, "0.025uxion")
+                "auto"
             );
 
             console.log("Transaction submitted:", res);
